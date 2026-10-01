@@ -4,6 +4,7 @@ original functions through a resolver/wrapper function."""
 from unittest.mock import Mock
 import pytest
 from reccmp.cvdump.types import CvdumpTypesParser
+from reccmp.compare.asm.parse import AsmExcerpt
 from reccmp.compare.asm.call_wrappers import (
     ignore_call_targets,
     numbers_in_name,
@@ -52,7 +53,7 @@ def test_numbers_in_name():
 def test_resolve_wrapped_calls():
     """The wrapper name embeds the orig address of the call target, so we use
     the text from the orig side for the recomp instruction."""
-    recomp = [(0x500, "call " + WRAPPER_NAME), (0x505, "push 0")]
+    recomp: AsmExcerpt = [(0x500, "call " + WRAPPER_NAME), (0x505, "push 0")]
     assert resolve_wrapped_calls(recomp, {0x1234000: "<OFFSET12>"}) == [
         (0x500, "call <OFFSET12>"),
         (0x505, "push 0"),
@@ -66,7 +67,7 @@ def test_resolve_wrapped_calls():
 
 def test_resolve_wrapped_calls_no_match():
     """A wrapper for some other function is still a mismatch."""
-    recomp = [(0x500, "call " + WRAPPER_NAME)]
+    recomp: AsmExcerpt = [(0x500, "call " + WRAPPER_NAME)]
     assert resolve_wrapped_calls(recomp, {0x5555000: "<OFFSET12>"}) == recomp
     # No call targets in the orig function: nothing to resolve against
     assert resolve_wrapped_calls(recomp, {}) == recomp
@@ -75,13 +76,13 @@ def test_resolve_wrapped_calls_no_match():
 def test_resolve_wrapped_calls_ignores_placeholder():
     """If we have no name for the recomp call target, there is nothing to read
     an original address from."""
-    recomp = [(0x500, "call <OFFSET1>")]
+    recomp: AsmExcerpt = [(0x500, "call <OFFSET1>")]
     assert resolve_wrapped_calls(recomp, {0x1234000: "<OFFSET12>"}) == recomp
 
 
 def test_ignore_call_targets():
     """Names and placeholders are replaced; registers are not."""
-    excerpt = [
+    excerpt: AsmExcerpt = [
         (0x500, "call <OFFSET1>"),
         (0x505, "call MyFunc"),
         (0x50A, "call dword ptr [<OFFSET2>]"),
@@ -221,3 +222,20 @@ def test_compare_function_ignore_call_targets(
         "SomeUnrelatedFunction",
     )
     assert result.match_ratio == 1.0
+
+
+def test_numbers_in_mangled_name():
+    """MSVC encodes an integer template argument as "$0", the value in base 16
+    with 'A'..'P' for the nibbles, and a terminating "@". A PDB hands us the
+    mangled name, so a resolver's address parameter looks like "$0EBMDBA@"
+    rather than a decimal number."""
+    name = (
+        "?call@?$CallHelper@HX@?$GameFunction@P8BuildingsState@Buildings@Map@"
+        "OpenSHC@@AEHHW4ResourceType@Resources@Game@4@H@Z@?$Resolver@P8Buildings"
+        "State@Buildings@Map@OpenSHC@@AEHHW4ResourceType@Resources@Game@4@H@Z"
+        "$0A@$0EBMDBA@$1?processResourceGain@1234@QAEHH0H@Z$0A@@FunctionResolver"
+        "@@QAEHHW4ResourceType@Resources@Game@OpenSHC@@H@Z"
+    )
+    assert 0x41C310 in set(numbers_in_name(name))
+    # "$0A@" is the value 0 and must not be mistaken for an address.
+    assert 0 not in set(numbers_in_name(name))
