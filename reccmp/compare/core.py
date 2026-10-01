@@ -99,6 +99,7 @@ class Compare:
         code_files: list[TextFile] | None = None,
         data_sources: list[TextFile] | None = None,
         project_aliases: ProjectAliases | None = None,
+        ignore_missing_symbols: bool = False,
     ):
         self.orig_bin = orig_bin
         self.recomp_bin = recomp_bin
@@ -118,7 +119,7 @@ class Compare:
         else:
             self.data_sources = []
 
-        self._lines_db = LinesDb()
+        self._lines_db = LinesDb(ignore_missing_symbols=ignore_missing_symbols)
         self._db = EntityDb()
 
         # For now, just redirect match alerts to the logger.
@@ -160,6 +161,16 @@ class Compare:
             self.project_aliases,
             self.report,
         )
+
+        # Each miss was counted rather than reported, so say how many there were.
+        if self._lines_db.ignore_missing_symbols:
+            missing = self._lines_db.missing_function_symbols
+            if missing > 0:
+                logger.info(
+                    "Could not find a symbol for %d function(s). "
+                    "Remove --ignore-missing-symbols to see which.",
+                    missing,
+                )
 
         load_data_sources(self._db, self.data_sources)
 
@@ -216,7 +227,9 @@ class Compare:
         match_strings(self._db, self.report)
 
     @classmethod
-    def from_target(cls, target: RecCmpTarget) -> Self:
+    def from_target(
+        cls, target: RecCmpTarget, *, ignore_missing_symbols: bool = False
+    ) -> Self:
         origfile = detect_image(filepath=target.original_path)
         recompfile = detect_image(filepath=target.recompiled_path)
 
@@ -259,6 +272,7 @@ class Compare:
             data_sources=data_sources,
             code_files=code_files,
             project_aliases=project_aliases,
+            ignore_missing_symbols=ignore_missing_symbols,
         )
         compare.run()
         return compare
