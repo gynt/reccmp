@@ -43,6 +43,21 @@ _NUMBER_TOKEN = re.compile(
 # small integer parameters (indices, flags) that we must not interpret as one.
 _MIN_PLAUSIBLE_ADDR = 0x1000
 
+# An integer template argument in an *undecorated* MSVC name. MSVC encodes a
+# non-negative value as "$0", the value in base 16 with 'A'..'P' standing for
+# the nibbles 0..15, and a terminating "@" ("$0EBMDBA@" == 0x41C310). A PDB
+# gives us the mangled name, so a resolver's address parameter never appears as
+# a plain decimal number there.
+_MANGLED_NUMBER_TOKEN = re.compile(r"\$0([A-P]+)@")
+
+
+def _from_mangled(digits: str) -> int:
+    value = 0
+    for char in digits:
+        value = value * 16 + (ord(char) - ord("A"))
+    return value
+
+
 CALL_PLACEHOLDER = "<CALL>"
 
 
@@ -63,6 +78,11 @@ def numbers_in_name(name: str) -> Iterable[int]:
         except ValueError:  # pragma: no cover - the regex guarantees this parses
             continue
 
+        if value >= _MIN_PLAUSIBLE_ADDR:
+            yield value
+
+    for match in _MANGLED_NUMBER_TOKEN.finditer(name):
+        value = _from_mangled(match.group(1))
         if value >= _MIN_PLAUSIBLE_ADDR:
             yield value
 
