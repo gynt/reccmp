@@ -8,7 +8,7 @@ from reccmp.project.detect import RecCmpTarget
 from reccmp.compare.diff import EntityCompareResult, RawDiffOutput
 from reccmp.parser.marker import ProjectAliases, normalize_project_aliases
 from reccmp.dir import source_code_search
-from reccmp.compare.functions import FunctionComparator
+from reccmp.compare.functions import CallComparisonOptions, FunctionComparator
 from reccmp.formats import (
     Image,
     PEImage,
@@ -86,6 +86,7 @@ class Compare:
     function_comparator: FunctionComparator
     data_sources: list[TextFile]
     project_aliases: ProjectAliases
+    call_options: CallComparisonOptions
 
     # pylint: disable=too-many-arguments
     # pylint: disable=too-many-positional-arguments
@@ -100,6 +101,7 @@ class Compare:
         data_sources: list[TextFile] | None = None,
         project_aliases: ProjectAliases | None = None,
         ignore_missing_symbols: bool = False,
+        call_options: CallComparisonOptions | None = None,
     ):
         self.orig_bin = orig_bin
         self.recomp_bin = recomp_bin
@@ -108,6 +110,7 @@ class Compare:
         self.src_encoding = encoding or "utf-8"
         self.bin_encoding = encoding or "latin1"
         self.project_aliases = normalize_project_aliases(project_aliases or {})
+        self.call_options = call_options or CallComparisonOptions()
 
         if isinstance(code_files, list):
             self.code_files = code_files
@@ -134,6 +137,7 @@ class Compare:
             self.recomp_bin,
             self.report,
             self.types,
+            call_options=self.call_options,
         )
 
     def run(self):
@@ -228,7 +232,7 @@ class Compare:
 
     @classmethod
     def from_target(
-        cls, target: RecCmpTarget, *, ignore_missing_symbols: bool = False
+        cls, target: RecCmpTarget, *, ignore_missing_symbols: bool = False, call_options: CallComparisonOptions | None = None
     ) -> Self:
         origfile = detect_image(filepath=target.original_path)
         recompfile = detect_image(filepath=target.recompiled_path)
@@ -273,6 +277,7 @@ class Compare:
             code_files=code_files,
             project_aliases=project_aliases,
             ignore_missing_symbols=ignore_missing_symbols,
+            call_options=call_options,
         )
         compare.run()
         return compare

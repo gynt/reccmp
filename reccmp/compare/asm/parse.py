@@ -46,11 +46,22 @@ class ParseAsm:
 
         self.replacements: dict[int, str] = {}
         self.indirect_replacements: dict[int, str] = {}
+        # Target address of each direct CALL in the function, mapped to the
+        # operand text used for it. Consumers use this to detect calls that
+        # are routed through a wrapper function in the other binary.
+        self.call_targets: dict[int, str] = {}
         self.number_placeholders = True
 
     def reset(self):
         self.replacements = {}
         self.indirect_replacements = {}
+        self.call_targets = {}
+
+    def replacement_names(self) -> set[str]:
+        """Every name or placeholder substituted into the asm of the last parse."""
+        return set(self.replacements.values()) | set(
+            self.indirect_replacements.values()
+        )
 
     def is_addr(self, value: int) -> bool:
         """Wrapper for user-provided address test"""
@@ -149,7 +160,9 @@ class ParseAsm:
             and (op_str_address := from_hex(inst_op_str)) is not None
         ):
             if inst_mnemonic == "call":
-                return (inst_mnemonic, self.replace(op_str_address, exact=True))
+                replacement = self.replace(op_str_address, exact=True)
+                self.call_targets[op_str_address] = replacement
+                return (inst_mnemonic, replacement)
 
             if inst_mnemonic == "push":
                 if self.is_addr(op_str_address):
