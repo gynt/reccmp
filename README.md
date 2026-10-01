@@ -70,6 +70,7 @@ All scripts will become available to use in your terminal with the `reccmp-` pre
   * Generate an HTML report: `reccmp-reccmp --target LEGO1 --html output.html`
   * Create a base file for diffs: `reccmp-reccmp --target LEGO1 --json base.json --silent`
   * Diff against a base file: `reccmp-reccmp --target LEGO1 --diff base.json`
+  * Print only the comparison result, without progress and warning messages: `reccmp-reccmp --target LEGO1 --quiet` (see below)
   * Resolve calls that are routed through a wrapper: `reccmp-reccmp --target LEGO1 --resolve-wrapped-calls` (see below)
   * Ignore call targets entirely: `reccmp-reccmp --target LEGO1 --ignore-call-targets`
 * [`stackcmp`](/reccmp/tools/stackcmp.py): Compares the stack layout for a given function that almost matches.
@@ -80,6 +81,28 @@ All scripts will become available to use in your terminal with the `reccmp-` pre
   * e.g. `reccmp-vtable --target LEGO1`
 * [`datacmp`](/reccmp/tools/datacmp.py): Compares global data found in the original with the recompiled version
   * e.g. `reccmp-datacmp --target LEGO1`
+
+
+### Log verbosity
+
+Every tool reports what it is doing, and anything questionable it finds, on
+stderr. On a project where many annotated functions are not part of the current
+build, the notes about symbols that could not be found can far outnumber the
+result you are looking for. These options set the lowest severity that is still
+displayed; the report itself goes to stdout and is not affected.
+
+| Option | Effect |
+| --- | --- |
+| *(none)* | `info` and above, as before |
+| `--debug` | everything, including debug messages |
+| `--log-level <level>` | `debug`, `info`, `warning`, `error` or `critical` |
+| `--quiet`, `-q` | `critical` only, i.e. just the report |
+
+Passing more than one of them is an error rather than last-one-wins.
+
+For `reccmp-reccmp`, `--quiet` leaves the per-function results and the summary;
+adding `--silent` (which suppresses the per-function results) leaves the summary
+alone, and `--verbose <offset>` still prints the diff for one function.
 
 ## Ghidra Import
 
