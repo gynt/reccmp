@@ -71,6 +71,7 @@ All scripts will become available to use in your terminal with the `reccmp-` pre
   * Create a base file for diffs: `reccmp-reccmp --target LEGO1 --json base.json --silent`
   * Diff against a base file: `reccmp-reccmp --target LEGO1 --diff base.json`
   * Print only the comparison result, without progress and warning messages: `reccmp-reccmp --target LEGO1 --quiet` (see below)
+  * Summarize annotated functions that have no symbol in the PDB: `reccmp-reccmp --target LEGO1 --ignore-missing-symbols` (see below)
   * Resolve calls that are routed through a wrapper: `reccmp-reccmp --target LEGO1 --resolve-wrapped-calls` (see below)
   * Ignore call targets entirely: `reccmp-reccmp --target LEGO1 --ignore-call-targets`
 * [`stackcmp`](/reccmp/tools/stackcmp.py): Compares the stack layout for a given function that almost matches.
@@ -103,6 +104,29 @@ Passing more than one of them is an error rather than last-one-wins.
 For `reccmp-reccmp`, `--quiet` leaves the per-function results and the summary;
 adding `--silent` (which suppresses the per-function results) leaves the summary
 alone, and `--verbose <offset>` still prints the diff for one function.
+
+#### Functions with no symbol
+
+An annotated function that is not part of the build you are comparing has no
+symbol in the PDB, and `reccmp-reccmp` says so once per function:
+
+```
+[ERROR] Failed to find function symbol with filename and line: <file>:<line>. ...
+```
+
+That is worth seeing when you expected the function to be compiled, and pure
+noise when you are comparing a subset of the project on purpose. Pass
+`--ignore-missing-symbols` to replace the individual messages with a single
+count:
+
+```
+[INFO] Could not find a symbol for 242 function(s). Remove --ignore-missing-symbols to see which.
+```
+
+The option covers that one message. Anything else, including the
+`Debug data out of sync` message that means a source file has been edited since
+the last compile, is still reported. The comparison itself is unchanged: only
+the reporting differs, so the result is identical either way.
 
 ## Ghidra Import
 

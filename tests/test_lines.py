@@ -1,5 +1,6 @@
 """Testing lines database: mapping between (filename, line_number) to virtual address."""
 
+import logging
 from pathlib import PurePosixPath, PureWindowsPath
 import pytest
 from reccmp.compare.lines import LinesDb
@@ -195,3 +196,61 @@ def test_db_search_line(local_path: PureWindowsPath | PurePosixPath):
 
     lines.mark_function_starts((0x1234,))
     assert [*lines.search_line(local_path, 2, 5, start_only=True)] == [0x1234]
+
+
+def test_missing_function_symbols_are_counted(caplog: pytest.LogCaptureFixture):
+    """Each function we cannot find a symbol for is counted and reported."""
+    lines = LinesDb()
+    lines.add_local_paths([LOCAL_PATHS[0]])
+
+    assert lines.missing_function_symbols == 0
+
+    with caplog.at_level(logging.ERROR):
+        assert lines.find_function(LOCAL_PATHS[0], 1) is None
+        assert lines.find_function(LOCAL_PATHS[0], 2) is None
+
+    assert lines.missing_function_symbols == 2
+    assert len(caplog.records) == 2
+
+
+def test_ignore_missing_symbols_suppresses_each_message(
+    caplog: pytest.LogCaptureFixture,
+):
+    """With ignore_missing_symbols, the misses are still counted (so the caller
+    can report the total) but not logged one by one."""
+    lines = LinesDb(ignore_missing_symbols=True)
+    lines.add_local_paths([LOCAL_PATHS[0]])
+
+    with caplog.at_level(logging.ERROR):
+        assert lines.find_function(LOCAL_PATHS[0], 1) is None
+        assert lines.find_function(LOCAL_PATHS[0], 2) is None
+
+    assert lines.missing_function_symbols == 2
+    assert not caplog.records
+
+
+def test_ignore_missing_symbols_keeps_other_errors(caplog: pytest.LogCaptureFixture):
+    """The option covers the missing symbol message only. Two functions in range
+    means the debug data is out of sync, which is a different problem and is
+    still reported."""
+    lines = LinesDb(ignore_missing_symbols=True)
+    lines.add_local_paths([LOCAL_PATHS[0]])
+    lines.add_line(PDB_PATH, 2, 0x1234)
+    lines.add_line(PDB_PATH, 3, 0x5678)
+    lines.mark_function_starts((0x1234, 0x5678))
+
+    with caplog.at_level(logging.ERROR):
+        assert lines.find_function(LOCAL_PATHS[0], 1, 10) is None
+
+    assert lines.missing_function_symbols == 0
+    assert "out of sync" in caplog.text
+
+
+def test_folded_functions_are_not_counted():
+    """A folded function is expected to have no symbol of its own, so it is
+    neither reported nor counted."""
+    lines = LinesDb()
+    lines.add_local_paths([LOCAL_PATHS[0]])
+
+    assert lines.find_function(LOCAL_PATHS[0], 1, folded=True) is None
+    assert lines.missing_function_symbols == 0

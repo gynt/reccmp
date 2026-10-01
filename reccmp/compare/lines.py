@@ -11,7 +11,16 @@ logger = logging.getLogger(__name__)
 
 
 class LinesDb:
-    def __init__(self) -> None:
+    def __init__(self, *, ignore_missing_symbols: bool = False) -> None:
+        # Report a function that has no symbol in the pdb as a single summary
+        # line instead of one message each. The lookup still happens; only the
+        # reporting changes.
+        self.ignore_missing_symbols = ignore_missing_symbols
+
+        # Number of functions we could not find a symbol for, whether or not
+        # each one was reported individually.
+        self.missing_function_symbols = 0
+
         self._path_resolver = cache(convert_foreign_path)
 
         # List of foreign paths and associated (line_no, address) pairs that cannot be
@@ -133,12 +142,14 @@ class LinesDb:
         # Do not alert for folded functions.
         # We expect only one match from many line annotations on the same address.
         if not folded:
-            logger.error(
-                "Failed to find function symbol with filename and line: %s:%d. "
-                + "If this issue persists after a recompile, the compiler has probably inlined this function.",
-                local_path,
-                line_start,
-            )
+            self.missing_function_symbols += 1
+            if not self.ignore_missing_symbols:
+                logger.error(
+                    "Failed to find function symbol with filename and line: %s:%d. "
+                    + "If this issue persists after a recompile, the compiler has probably inlined this function.",
+                    local_path,
+                    line_start,
+                )
 
         return None
 

@@ -195,6 +195,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Exclude LIBRARY annotations from the analysis",
     )
+    parser.add_argument(
+        "--ignore-missing-symbols",
+        action="store_true",
+        help="Report annotated functions that have no symbol in the PDB as a "
+        "single count instead of one message each",
+    )
     argparse_add_logging_args(parser)
 
     args = parser.parse_args()
@@ -254,7 +260,7 @@ def main() -> int:
     logging.basicConfig(level=args.loglevel, format="[%(levelname)s] %(message)s")
 
     compare = Compare.from_target(
-        target,
+        target, ignore_missing_symbols=args.ignore_missing_symbols,
         call_options=CallComparisonOptions(
             resolve_wrapped_calls=args.resolve_wrapped_calls,
             ignore_call_targets=args.ignore_call_targets,
