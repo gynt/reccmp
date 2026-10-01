@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cache
 import struct
 from itertools import pairwise
@@ -7,6 +7,10 @@ from reccmp.compare.lines import LinesDb
 from reccmp.compare.pinned_sequences import SequenceMatcherWithPins
 from reccmp.compare.asm.fixes import assert_fixup, find_effective_match
 from reccmp.compare.asm.parse import AsmExcerpt, ParseAsm
+from reccmp.compare.asm.call_wrappers import (
+    ignore_call_targets,
+    resolve_wrapped_calls,
+)
 from reccmp.compare.asm.replacement import (
     create_name_lookup,
 )
@@ -65,6 +69,20 @@ def create_bin_lookup(bin_file: Image) -> Callable[[int], int | None]:
 
 
 @dataclass
+class CallComparisonOptions:
+    """Options to deal with recomp binaries where calls to original functions
+    are routed through a wrapper (resolver) function."""
+
+    resolve_wrapped_calls: bool = False
+    """If the name of a recomp call target embeds the original address of one of
+    the call targets in the original function, treat the two calls as equal."""
+
+    ignore_call_targets: bool = False
+    """Replace the target of every CALL with a placeholder on both sides so that
+    call targets never contribute to the diff."""
+
+
+@dataclass
 class FunctionComparator:
     # pylint: disable=too-many-instance-attributes
     db: EntityDb
@@ -74,6 +92,7 @@ class FunctionComparator:
     report: ReccmpReportProtocol
     types: CvdumpTypesParser
     is_32bit: bool = True
+    call_options: CallComparisonOptions = field(default_factory=CallComparisonOptions)
 
     def __post_init__(self):
         self.orig_sanitize = ParseAsm(
@@ -152,6 +171,10 @@ class FunctionComparator:
         if has_asserts(self.recomp_bin):
             assert_fixup(recomp_combined)
 
+        orig_combined, recomp_combined = self._normalize_calls(
+            orig_combined, recomp_combined
+        )
+
         line_annotations = self._collect_line_annotations(recomp_combined)
 
         split_points = self._compute_split_points(
@@ -161,6 +184,24 @@ class FunctionComparator:
         return self._compare_function_assembly(
             orig_combined, recomp_combined, split_points
         )
+
+    def _normalize_calls(
+        self, orig: AsmExcerpt, recomp: AsmExcerpt
+    ) -> tuple[AsmExcerpt, AsmExcerpt]:
+        """Apply the configured CALL normalization to the asm of both binaries."""
+        if self.call_options.ignore_call_targets:
+            return (
+                ignore_call_targets(orig, self.orig_sanitize.replacement_names()),
+                ignore_call_targets(recomp, self.recomp_sanitize.replacement_names()),
+            )
+
+        if self.call_options.resolve_wrapped_calls:
+            return (
+                orig,
+                resolve_wrapped_calls(recomp, self.orig_sanitize.call_targets),
+            )
+
+        return (orig, recomp)
 
     @staticmethod
     def _print_recomp_instruction(

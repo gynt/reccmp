@@ -70,6 +70,8 @@ All scripts will become available to use in your terminal with the `reccmp-` pre
   * Generate an HTML report: `reccmp-reccmp --target LEGO1 --html output.html`
   * Create a base file for diffs: `reccmp-reccmp --target LEGO1 --json base.json --silent`
   * Diff against a base file: `reccmp-reccmp --target LEGO1 --diff base.json`
+  * Resolve calls that are routed through a wrapper: `reccmp-reccmp --target LEGO1 --resolve-wrapped-calls` (see below)
+  * Ignore call targets entirely: `reccmp-reccmp --target LEGO1 --ignore-call-targets`
 * [`stackcmp`](/reccmp/tools/stackcmp.py): Compares the stack layout for a given function that almost matches.
   * e.g. `reccmp-stackcmp --target BETA10 0x1007165d`
 * [`roadmap`](/reccmp/tools/roadmap.py): Compares symbol locations in an original binary with the same symbol locations of a recompiled binary
