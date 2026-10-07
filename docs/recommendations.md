@@ -73,3 +73,34 @@ typedef unsigned int undefined4;
 ```
 
 Note that the behaviour of signed and unsigned integers can be different even when no arithmetic is involved. If changing e.g. from `undefined4` to `int` improves the match, this is a strong indicator that the original variable was signed as well.
+
+## Calls routed through a wrapper function
+
+Some projects cannot emit a direct call to an original function and instead
+generate a wrapper (often a template instantiation, e.g. a `FunctionResolver`)
+that performs the call. The recomp assembly then reads
+
+```
+0x4b21db : -call <OFFSET12>
+         : +call FunctionResolver::Resolver<void (__thiscall A::B::*)(int),0,4657152,&A::B::f,0>::GameFunction<...>::CallHelper<void,void>::call (FUNCTION)
+```
+
+Every such call counts as a mismatch, so an otherwise perfect function can
+never reach 100%. `reccmp-reccmp` offers two options for this situation:
+
+* `--resolve-wrapped-calls` uses the fact that the original address of the
+  called function appears inside the wrapper's name, because that is how the
+  wrapper is parameterized (`4657152` == `0x471000` above). If that number is
+  the target address of the call on the original side, the two instructions
+  describe the same call and the recomp instruction is rewritten to the text
+  used by the original one. Calls that go somewhere else are left alone, so
+  genuinely wrong calls are still reported. Both decimal and hexadecimal
+  (`0x...`) numbers are recognized, and numbers below `0x1000` are ignored so
+  that small template parameters are not mistaken for an address.
+* `--ignore-call-targets` is the blunt alternative: the target of every call is
+  replaced by a `<CALL>` placeholder in both binaries, so call targets never
+  contribute to the difference. This also hides real call mismatches, so prefer
+  `--resolve-wrapped-calls` where it works. If both options are given,
+  `--ignore-call-targets` wins.
+
+Neither option is enabled by default.

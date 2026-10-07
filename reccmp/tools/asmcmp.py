@@ -18,6 +18,7 @@ from reccmp.utils import (
 )
 
 from reccmp.compare import Compare
+from reccmp.compare.functions import CallComparisonOptions
 from reccmp.compare.db import ReccmpEntity
 from reccmp.compare.diff import raw_diff_to_udiff
 from reccmp.compare.report import (
@@ -172,6 +173,24 @@ def parse_args() -> argparse.Namespace:
         help="Don't display text summary of matches",
     )
     parser.add_argument(
+        "--resolve-wrapped-calls",
+        action="store_true",
+        help=(
+            "Treat a recomp CALL as a match if the name of its target embeds the "
+            "original address of the function called at that point in the original "
+            "binary. For projects that route calls to original functions through a "
+            "resolver/wrapper template."
+        ),
+    )
+    parser.add_argument(
+        "--ignore-call-targets",
+        action="store_true",
+        help=(
+            "Ignore the target of every CALL instruction, so that calls never count "
+            "towards the difference. Takes precedence over --resolve-wrapped-calls."
+        ),
+    )
+    parser.add_argument(
         "--nolib",
         action="store_true",
         help="Exclude LIBRARY annotations from the analysis",
@@ -186,7 +205,12 @@ def parse_args() -> argparse.Namespace:
         "--invalidate-cache",
         action="store_true",
         help="Run cvdump.exe even if a saved dump exists, and replace it "
-        "(implies --cache)",
+        "(implies --cache)")
+    parser.add_argument(
+        "--ignore-missing-symbols",
+        action="store_true",
+        help="Report annotated functions that have no symbol in the PDB as a "
+        "single count instead of one message each",
     )
     argparse_add_logging_args(parser)
 
@@ -247,7 +271,14 @@ def main() -> int:
     logging.basicConfig(level=args.loglevel, format="[%(levelname)s] %(message)s")
 
     compare = Compare.from_target(
-        target, cache=args.cache, invalidate_cache=args.invalidate_cache
+        target, 
+        ignore_missing_symbols=args.ignore_missing_symbols,
+        call_options=CallComparisonOptions(
+            resolve_wrapped_calls=args.resolve_wrapped_calls,
+            ignore_call_targets=args.ignore_call_targets,
+        ),
+        cache=args.cache,
+        invalidate_cache=args.invalidate_cache
     )
 
     print()
